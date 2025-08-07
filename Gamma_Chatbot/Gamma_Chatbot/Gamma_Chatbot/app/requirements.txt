@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+requests
+python-multipart
+aiofiles
+langchain
+langchain-community
+langchain-ollama

@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  ollama:
+    build: ./ollama
+    container_name: ollama
+    volumes:
+      - ollama_models:/root/.ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+    tty: true
+
+  app:
+    build: .
+    container_name: my-ollama-app
+    depends_on:
+      - ollama
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+
+volumes:
+  ollama_models:

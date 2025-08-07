@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ollama Chat Interface - Gemma 2B</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 800px;
+            min-height: 600px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+
+        .status-icon {
+            font-size: 1.2em;
+        }
+
+        .chat-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .message.user {
+            text-align: right;
+        }
+
+        .message.assistant {
+            text-align: left;
+        }
+
+        .message-content {
+            display: inline-block;
+            max-width: 80%;
+            padding: 15px 20px;
+            border-radius: 20px;
+            word-wrap: break-word;
+            line-height: 1.5;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message.assistant .message-content {
+            background: white;
+            color: #333;
+            border: 1px solid #e0e0e0;
+            border-bottom-left-radius: 5px;
+        }
+
+        .input-area {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .prompt-input {
+            flex: 1;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            padding: 15px 20px;
+            font-size: 16px;
+            resize: none;
+            min-height: 50px;
+            max-height: 120px;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+
+        .prompt-input:focus {
+            border-color: #667eea;
+        }
+
+        .prompt-input:disabled {
+            background: #f5f5f5;
+            cursor: not-allowed;
+        }
+
+        .submit-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 15px 25px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            min-width: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .submit-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .submit-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #666;
+            font-style: italic;
+            padding: 15px 20px;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .error-message {
+            background: #ff6b6b;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin: 10px 0;
+            text-align: center;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                margin: 0;
+                border-radius: 0;
+                height: 100vh;
+            }
+            
+            .message-content {
+                max-width: 90%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+                            <h1>🤖 Ollama Chat - Gemma 2B</h1>
+            <div class="status-indicator" id="statusIndicator">
+                <span class="status-icon">🔄</span>
+                <span id="statusText">Loading model...</span>
+            </div>
+        </div>
+        
+        <div class="chat-area" id="chatArea">
+            <div class="message assistant">
+                <div class="message-content">
+                    👋 Hello! I'm ready to help you. Ask me anything!
+                </div>
+            </div>
+        </div>
+        
+        <div class="input-area">
+            <div class="input-container">
+                <textarea 
+                    id="promptInput" 
+                    class="prompt-input" 
+                    placeholder="Type your message here..." 
+                    disabled
+                    rows="1"
+                ></textarea>
+                <button id="submitBtn" class="submit-btn" disabled>
+                    📤
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class OllamaChat {
+            constructor() {
+                this.promptInput = document.getElementById('promptInput');
+                this.submitBtn = document.getElementById('submitBtn');
+                this.chatArea = document.getElementById('chatArea');
+                this.statusIndicator = document.getElementById('statusIndicator');
+                this.statusText = document.getElementById('statusText');
+                
+                this.isModelReady = false;
+                this.isGenerating = false;
+                
+                this.init();
+            }
+            
+            init() {
+                // Check model status on load
+                this.checkModelStatus();
+                
+                // Set up event listeners
+                this.submitBtn.addEventListener('click', () => this.sendMessage());
+                this.promptInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                });
+                
+                this.promptInput.addEventListener('input', this.autoResize.bind(this));
+                
+                // Check status every 5 seconds if model is not ready
+                this.statusInterval = setInterval(() => {
+                    if (!this.isModelReady) {
+                        this.checkModelStatus();
+                    }
+                }, 5000);
+            }
+            
+            autoResize() {
+                this.promptInput.style.height = 'auto';
+                this.promptInput.style.height = Math.min(this.promptInput.scrollHeight, 120) + 'px';
+            }
+            
+            async checkModelStatus() {
+                try {
+                    const response = await fetch('/status');
+                    const data = await response.json();
+                    
+                    if (data.status === 'ready') {
+                        this.setModelReady(data.model);
+                    } else if (data.status === 'loading') {
+                        this.setModelLoading(data.message);
+                    } else {
+                        this.setModelError(data.message);
+                    }
+                } catch (error) {
+                    this.setModelError('Unable to connect to server');
+                }
+            }
+            
+            setModelReady(modelName) {
+                this.isModelReady = true;
+                this.statusText.textContent = `Ready (${modelName})`;
+                this.statusIndicator.querySelector('.status-icon').textContent = '✅';
+                this.promptInput.disabled = false;
+                this.submitBtn.disabled = false;
+                this.promptInput.focus();
+                
+                // Clear the interval since model is ready
+                if (this.statusInterval) {
+                    clearInterval(this.statusInterval);
+                }
+            }
+            
+            setModelLoading(message) {
+                this.isModelReady = false;
+                this.statusText.textContent = message || 'Loading model...';
+                this.statusIndicator.querySelector('.status-icon').textContent = '🔄';
+                this.promptInput.disabled = true;
+                this.submitBtn.disabled = true;
+            }
+            
+            setModelError(message) {
+                this.isModelReady = false;
+                this.statusText.textContent = message || 'Error loading model';
+                this.statusIndicator.querySelector('.status-icon').textContent = '❌';
+                this.promptInput.disabled = true;
+                this.submitBtn.disabled = true;
+            }
+            
+            async sendMessage() {
+                const prompt = this.promptInput.value.trim();
+                if (!prompt || !this.isModelReady || this.isGenerating) return;
+                
+                // Add user message to chat
+                this.addMessage(prompt, 'user');
+                
+                // Clear input
+                this.promptInput.value = '';
+                this.autoResize();
+                
+                // Show loading
+                this.setGenerating(true);
+                const loadingElement = this.addLoadingMessage();
+                
+                try {
+                    const response = await fetch('/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ 
+                            message: prompt,
+                            use_langchain: true 
+                        }),
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Remove loading message
+                    loadingElement.remove();
+                    
+                    // Add assistant response with method indicator
+                    const responseText = data.response || 'No response received';
+                    const methodText = data.method === 'langchain' ? ' (LangChain + Gemma 2B)' : ' (Direct API)';
+                    this.addMessage(responseText, 'assistant');
+                    
+                    // Optionally show method in console for debugging
+                    console.log(`Response generated using: ${data.method} with model: ${data.model}`);
+                    
+                } catch (error) {
+                    console.error('Error:', error);
+                    loadingElement.remove();
+                    this.addErrorMessage('Sorry, there was an error processing your request. Please try again.');
+                } finally {
+                    this.setGenerating(false);
+                }
+            }
+            
+            setGenerating(generating) {
+                this.isGenerating = generating;
+                this.promptInput.disabled = generating || !this.isModelReady;
+                this.submitBtn.disabled = generating || !this.isModelReady;
+                
+                if (generating) {
+                    this.submitBtn.innerHTML = '<div class="spinner"></div>';
+                } else {
+                    this.submitBtn.textContent = '📤';
+                }
+            }
+            
+            addMessage(content, type) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${type}`;
+                
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                contentDiv.textContent = content;
+                
+                messageDiv.appendChild(contentDiv);
+                this.chatArea.appendChild(messageDiv);
+                
+                // Scroll to bottom
+                this.chatArea.scrollTop = this.chatArea.scrollHeight;
+                
+                return messageDiv;
+            }
+            
+            addLoadingMessage() {
+                const loadingDiv = document.createElement('div');
+                loadingDiv.className = 'loading';
+                loadingDiv.innerHTML = '<div class="spinner"></div> Generating response...';
+                
+                this.chatArea.appendChild(loadingDiv);
+                this.chatArea.scrollTop = this.chatArea.scrollHeight;
+                
+                return loadingDiv;
+            }
+            
+            addErrorMessage(message) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.textContent = message;
+                
+                this.chatArea.appendChild(errorDiv);
+                this.chatArea.scrollTop = this.chatArea.scrollHeight;
+                
+                return errorDiv;
+            }
+        }
+        
+        // Initialize the chat when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new OllamaChat();
+        });
+    </script>
+</body>
+</html>
